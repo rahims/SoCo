@@ -1,0 +1,3 @@
+[submodule "SoCo-Tk"]
+	path = SoCo-Tk
+	url = git@github.com:labero/SoCo-Tk.git
