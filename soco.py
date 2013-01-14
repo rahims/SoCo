@@ -652,7 +652,12 @@ class SoCo(object):
         """
         action = '"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo"'
 
-        body = '<u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Channel>Master</Channel></u:GetPositionInfo>'
+        body = '''
+            <u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                <InstanceID>0</InstanceID>
+                <Channel>Master</Channel>
+            </u:GetPositionInfo>
+        '''
 
         response = self.__send_command(SoCo.TRANSPORT_ENDPOINT, action, body)
 
@@ -666,9 +671,29 @@ class SoCo(object):
 
         d = dom.findtext('.//TrackMetaData')
 
+        # Duration seems to be '0:00:00' when listening to radio
+        if track['duration'] == '0:00:00':
+            metadata = XML.fromstring(d.encode('utf-8'))
+
+            # #Try parse trackinfo
+            trackinfo = metadata.findtext('.//{urn:schemas-rinconnetworks-com:metadata-1-0/}streamContent')
+            try:
+                index = trackinfo.find(' - ')
+                if index > -1:
+                    track['artist'] = trackinfo[:index]
+                    track['title'] = trackinfo[index+3:]
+            except:
+                logging.warning('Could not handle track info: "%s"', trackinfo)
+                logging.warning(traceback.format_exc())
+                track['artist'] = ''
+                track['title'] = trackinfo
+
+            track['album'] = ''
+            track['album_art'] = ''
+
         # If the speaker is playing from the line-in source, querying for track
         # metadata will return "NOT_IMPLEMENTED".
-        if d is not '' or d is not 'NOT_IMPLEMENTED':
+        elif d is not '' or d is not 'NOT_IMPLEMENTED':
             # Track metadata is returned in DIDL-Lite format
             metadata = XML.fromstring(d.encode('utf-8'))
 
