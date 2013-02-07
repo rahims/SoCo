@@ -17,24 +17,19 @@ class Volume(unittest.TestCase):
     """ Unit tests for the volume method """
 
     def setUp(self):  # pylint: disable-msg=C0103
-        self.method_name = 'volume'
         self.valid_values = range(101)
 
-    def test_get(self):
-        """ Test if the get functionality works and returns a valid value """
-        volume = SOCO.volume()
-        self.assertIn(volume, self.valid_values)
-
-    def test_set(self):
+    def test_get_and_set(self):
         """ Tests if the set functionlity works when given valid arguments """
-        volume = SOCO.volume()
-        if volume < 100:
-            new_volume = volume + 1
+        old = SOCO.volume()
+        self.assertIn(old, self.valid_values)
+        if old == self.valid_values[0]:
+            new = old + 1
         else:
-            new_volume = volume - 1
-        self.assertIs(SOCO.volume(new_volume), True)
-        self.assertEqual(SOCO.volume(), new_volume)
-        SOCO.volume(volume)
+            new = old - 1
+        self.assertIs(SOCO.volume(new), True)
+        self.assertEqual(SOCO.volume(), new)
+        SOCO.volume(old)
 
     def test_invalid_arguments(self):
         """ Tests if the set functionality fails predictively when given
@@ -43,8 +38,71 @@ class Volume(unittest.TestCase):
         self.assertEqual(SOCO.volume(self.valid_values[0] - 1), 402)
         self.assertEqual(SOCO.volume(self.valid_values[-1] + 1), 402)
 
+
+class Bass(unittest.TestCase):
+
+    """ Unit tests for the bass method """
+
+    def setUp(self):  # pylint: disable-msg=C0103
+        self.valid_values = range(-10, 11)
+
+    def test_get_and_set(self):
+        """ Tests if the set functionlity works when given valid arguments """
+        old = SOCO.bass()
+        self.assertIn(old, self.valid_values)
+        if old == self.valid_values[0]:
+            new = old + 1
+        else:
+            new = old - 1
+        self.assertIs(SOCO.bass(new), True)
+        self.assertEqual(SOCO.bass(), new)
+        SOCO.bass(old)
+
+    def test_invalid_arguments(self):
+        """ Tests if the set functionality produces the expected "coerce in
+        range" functionality when given a value outside of its range
+        """
+        old = SOCO.bass()
+        SOCO.bass(self.valid_values[0] - 1)
+        self.assertEqual(SOCO.bass(), self.valid_values[0])
+        SOCO.bass(self.valid_values[-1] + 1)
+        self.assertEqual(SOCO.bass(), self.valid_values[-1])
+        SOCO.bass(old)
+
+
+class Treble(unittest.TestCase):
+
+    """ Unit tests for the treble method """
+
+    def setUp(self):  # pylint: disable-msg=C0103
+        self.valid_values = range(-10, 11)
+
+    def test_get_and_set(self):
+        """ Tests if the set functionlity works when given valid arguments """
+        old = SOCO.treble()
+        self.assertIn(old, self.valid_values)
+        if old == self.valid_values[0]:
+            new = old + 1
+        else:
+            new = old - 1
+        self.assertIs(SOCO.treble(new), True)
+        self.assertEqual(SOCO.treble(), new)
+        SOCO.treble(old)
+
+    def test_invalid_arguments(self):
+        """ Tests if the set functionality produces the expected "coerce in
+        range" functionality when given a value outside its range
+        """
+        old = SOCO.treble()
+        SOCO.treble(self.valid_values[0] - 1)
+        self.assertEqual(SOCO.treble(), self.valid_values[0])
+        SOCO.treble(self.valid_values[-1] + 1)
+        self.assertEqual(SOCO.treble(), self.valid_values[-1])
+        SOCO.treble(old)
+
+
 if __name__ == "__main__":
-    
+
     def get_ips_and_names():
         """ Return a list of zone ips and names """
         discovery = soco.SonosDiscovery()
@@ -61,7 +119,7 @@ if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(description=DESCRIPTION,
                             formatter_class=argparse.RawTextHelpFormatter)
     PARSER.add_argument('--ip', type=str, default=None, help='the IP address '
-                        'for the zone to use for the unit tests')
+                        'for the zone to be used for the unit tests')
     PARSER.add_argument('--list', action='store_const', const=True,
                         dest='zone_list', help='lists all the available zones'
                         ' and their IP addresses')
@@ -91,7 +149,7 @@ if __name__ == "__main__":
                 METHODS.append(name.replace('_', ''))
 
         # Get all classes in this module
-        CLASSES  = []
+        CLASSES = []
         for name, obj in inspect.getmembers(sys.modules[__name__],
                                             predicate=inspect.isclass):
             CLASSES.append(name.lower())
