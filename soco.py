@@ -15,9 +15,11 @@ import select
 import socket
 import logging, traceback
 
+from events import Events
+
 logger = logging.getLogger(__name__)
 
-__all__ = ['SonosDiscovery', 'SoCo']
+__all__ = ['SonosDiscovery', 'SoCo', 'Events']
 
 class SonosDiscovery(object):
     """A simple class for discovering Sonos speakers.

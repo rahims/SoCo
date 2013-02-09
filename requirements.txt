@@ -1,1 +1,2 @@
-requests
+requests==1.1.0
+gevent==0.13.8
