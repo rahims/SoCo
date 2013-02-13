@@ -13,7 +13,6 @@ import argparse
 
 
 class Volume(unittest.TestCase):
-
     """ Unit tests for the volume method """
 
     def setUp(self):  # pylint: disable-msg=C0103
@@ -40,7 +39,6 @@ class Volume(unittest.TestCase):
 
 
 class Bass(unittest.TestCase):
-
     """ Unit tests for the bass method """
 
     def setUp(self):  # pylint: disable-msg=C0103
@@ -71,7 +69,6 @@ class Bass(unittest.TestCase):
 
 
 class Treble(unittest.TestCase):
-
     """ Unit tests for the treble method """
 
     def setUp(self):  # pylint: disable-msg=C0103
@@ -101,6 +98,49 @@ class Treble(unittest.TestCase):
         SOCO.treble(old)
 
 
+class GetCurrentTrackInfo(unittest.TestCase):
+    """ Unit test for the get_current_track_info method """
+
+    def setUp(self):  # pylint: disable-msg=C0103
+        # The value in this list must be kept up to date with the values in
+        # the test_get doc string
+        self.info_keys = ['album', 'artist', 'title', 'uri',
+            'playlist_position', 'duration', 'album_art']
+
+    def test_get(self):
+        """ Test is the return value is a dictinary and contains the following
+        keys: album, artist, title, uri, playlist_position, duration and
+        album_art
+        """
+        info = SOCO.get_current_track_info()
+        self.assertIsInstance(info, dict, 'Returned info is not a dict')
+        self.assertEqual(info.keys(), self.info_keys,
+            'Info does not contain the proper keys')
+
+
+class GetQueue(unittest.TestCase):
+    """ Unit test for the get_queue method """
+
+    def setUp(self):  # pylint: disable-msg=C0103
+        # The value in this list must be kept up to date with the values in
+        # the test_get doc string
+        self.track_keys = ['album', 'artist', 'uri', 'album_art', 'title']
+
+    def test_get(self):
+        """ Tests is return value is a list of dictionaries and if each of
+        the dictionaries contain the keys: album, artist, uri, album_art and
+        title
+        """
+        queue = SOCO.get_queue()
+        self.assertIsInstance(queue, list, 'Returned queue is not a list')
+        self.assertTrue(len(queue) > 0,
+            'Unit tests must be run with at least one item in the queue')
+        for item in queue:
+            self.assertIsInstance(item, dict, 'Item in queue is not a dict')
+            self.assertEqual(item.keys(), self.track_keys,
+                'Item in queue does not contain the proper keys')
+
+
 if __name__ == "__main__":
 
     def get_ips_and_names():
@@ -125,6 +165,8 @@ if __name__ == "__main__":
                         ' and their IP addresses')
     PARSER.add_argument('--coverage', action='store_const', const=True,
                         help='unit test coverage statistics')
+    PARSER.add_argument('--verbose', type=int, default=1, help='Verbosity '
+                        'level for the unit tests (1 or 2). 1 is default.')
     ARGS = PARSER.parse_args()
 
     # Switch execution depending on command line input
@@ -132,7 +174,9 @@ if __name__ == "__main__":
         SOCO = soco.SoCo(ARGS.ip)
         # Delete command line arguments, otherwise unittest will complain
         sys.argv = sys.argv[:1]
-        unittest.main()
+        SUITE = unittest.TestLoader().loadTestsFromModule(
+            sys.modules[__name__])
+        unittest.TextTestRunner(verbosity=ARGS.verbose).run(SUITE)
     elif ARGS.zone_list:
         PATTERN = '{0}\t{1}\n'
         NAMES_AND_IPS = get_ips_and_names()
