@@ -86,12 +86,16 @@ SoCo currently supports the following basic controls:
     * MAC Address
 * Find all the Sonos speakers in a network. Code contributed by Thomas Bartvig.
 * Put all Sonos speakers in a network into "party mode". Code contributed by Thomas Bartvig.
+* "Unjoin" speakers from a group.
 * Manage the Sonos queue (get the items in it, add to it, clear it, play a specific song from it)
+* Get the saved favorite radio stations and shows (title and stream URI)
 
 ## To-Do
 Want to contribute to SoCo? Here's what needs to be done:
 
-* better error checking
+* Unit tests. (Currently being worked on by [Kenneth Nielsen](https://github.com/KennethNielsen).)
+* Better error checking.
+* PEP 8
 
 ## Contributors
 * Thomas Bartvig [thomas.bartvig@gmail.com](mailto:thomas.bartvig@gmail.com)
@@ -99,6 +103,9 @@ Want to contribute to SoCo? Here's what needs to be done:
 * [nixscripter](https://github.com/nixscripter)
 * [Joel Björkman](https://github.com/labero)
 * [Stefan Kögl](https://github.com/stefankoegl)
+* [Kenneth Nielsen](https://github.com/KennethNielsen)
+* [Scott G. Waters](https://github.com/scottgwaters)
+* [phut](https://github.com/phut)
 
 ## Related Projects
 More of a Ruby fan? Not a problem, [Sam Soffes](https://github.com/soffes) is building out an awesome [Ruby gem](https://github.com/soffes/sonos).
@@ -106,6 +113,6 @@ More of a Ruby fan? Not a problem, [Sam Soffes](https://github.com/soffes) is bu
 Looking for a GUI that's more than just a sample project? [Joel Björkman](https://github.com/labero) is building a Sonos Controller GUI--great for folks on Linux where there isn't an official Sonos Controller application! Find, fork, and contribute to it here: [https://github.com/labero/SoCo-Tk](https://github.com/labero/SoCo-Tk).
 
 ## License
-Copyright (C) 2012 Rahim Sonawalla ([rsonawalla@gmail.com](mailto:rsonawalla@gmail.com) / [@rahims](http://twitter.com/rahims)).
+Copyright (C) 2012-2013 Rahim Sonawalla ([rsonawalla@gmail.com](mailto:rsonawalla@gmail.com) / [@rahims](http://twitter.com/rahims)).
 
 Released under the [MIT license](http://www.opensource.org/licenses/mit-license.php).

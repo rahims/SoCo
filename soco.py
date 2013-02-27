@@ -4,7 +4,7 @@
 
 # Will be parsed by setup.py to determine package metadata
 __author__ = 'Rahim Sonawalla <rsonawalla@gmail.com>'
-__version__ = '0.2'
+__version__ = '0.5'
 __website__ = 'https://github.com/rahims/SoCo'
 __license__ = 'MIT License'
 
@@ -17,7 +17,6 @@ import logging, traceback
 
 logger = logging.getLogger(__name__)
 
-
 __all__ = ['SonosDiscovery', 'SoCo']
 
 class SonosDiscovery(object):
@@ -25,10 +24,11 @@ class SonosDiscovery(object):
 
     Public functions:
     get_speaker_ips -- Get a list of IPs of all zoneplayers.
+
     """
 
     def __init__(self):
-        self._sock = socket.socket(
+        self._sock = socket.socket( 
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
 
@@ -69,13 +69,17 @@ class SoCo(object):
     status_light -- Turn on (or off) the Sonos status light.
     get_current_track_info -- Get information about the currently playing track.
     get_speaker_info -- Get information about the Sonos speaker.
-    partymode -- Put all the speakers in the network in the same group, a.k.a Party Mode.
+    partymode -- Put all the speakers in the network in the same group.
     join -- Join this speaker to another "master" speaker.
+    unjoin -- Remove this speaker from a group.
     get_speaker_info -- Get information on this speaker.
     get_queue -- Get information about the queue.
+    get_current_transport_info -- get speakers playing state
     add_to_queue -- Add a track to the end of the queue
     remove_from_queue -- Remove a track from the queue
     clear_queue -- Remove all tracks from queue
+    get_favorite_radio_shows -- Get favorite radio shows from Sonos' Radio app.
+    get_favorite_radio_stations -- Get favorite radio stations.
 
     """
 
@@ -107,6 +111,7 @@ class SoCo(object):
         action = '"urn:schemas-upnp-org:service:AVTransport:1#SetPlayMode"'
         body = '<u:SetPlayMode xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><NewPlayMode>'+playmode+'</NewPlayMode></u:SetPlayMode>'
         response = self.__send_command(TRANSPORT_ENDPOINT, action, body)
+
         if "errorCode" in response:
             return self.__parse_error(response)
         else:
@@ -159,17 +164,19 @@ class SoCo(object):
         """
 
         response = self.__send_command(TRANSPORT_ENDPOINT, PLAY_ACTION, PLAY_BODY)
+
         if (response == PLAY_RESPONSE):
             return True
         else:
             return self.__parse_error(response)
 
 
-    def play_uri(self, uri=''):
-        """Play a given stream. Pauses the queue.
+    def play_uri(self, uri='', meta=''):
+        """ Play a given stream. Pauses the queue.
 
         Arguments:
         uri -- URI of a stream to be played.
+        meta --- The track metadata to show in the player, DIDL format.
 
         Returns:
         True if the Sonos speaker successfully started playing the track.
@@ -179,7 +186,8 @@ class SoCo(object):
         speaker will be returned.
 
         """
-        body = PLAY_URI_BODY_TEMPLATE.format(uri=uri)
+
+        body = PLAY_URI_BODY_TEMPLATE.format(uri=uri, meta=meta)
 
         response = self.__send_command(TRANSPORT_ENDPOINT, SET_TRANSPORT_ACTION, body)
 
@@ -244,6 +252,7 @@ class SoCo(object):
 
         body = SEEK_TIMESTAMP_BODY_TEMPLATE.format(timestamp=timestamp)
         response = self.__send_command(TRANSPORT_ENDPOINT, SEEK_ACTION, body)
+
         if "errorCode" in response:
             return self.__parse_error(response)
         else:
@@ -336,6 +345,7 @@ class SoCo(object):
 
         """
         if volume:
+            volume = max(0, min(volume, 100)) # Coerce in range
             body = SET_VOLUME_BODY_TEMPLATE.format(volume=volume)
 
             response = self.__send_command(RENDERING_ENDPOINT, SET_VOLUME_ACTION, body)
@@ -371,6 +381,7 @@ class SoCo(object):
 
         """
         if bass is not False:
+            bass = max(-10, min(bass, 10)) # Coerce in range
             body = SET_BASS_BODY_TEMPLATE.format(bass=bass)
 
             response = self.__send_command(RENDERING_ENDPOINT, SET_BASS_ACTION, body)
@@ -406,6 +417,7 @@ class SoCo(object):
 
         """
         if treble is not False:
+            treble = max(-10, min(treble, 10)) # Coerce in range
             body = SET_TREBLE_BODY_TEMPLATE.format(treble=treble)
 
             response = self.__send_command(RENDERING_ENDPOINT, SET_TREBLE_ACTION, body)
@@ -507,6 +519,23 @@ class SoCo(object):
         else:
             return self.__parse_error(response)
 
+    def unjoin(self):
+        """ Remove this speaker from a group.
+
+        Seems to work ok even if you remove what was previously the group master
+        from it's own group. If the speaker was not in a group also returns ok.
+
+		Returns:
+		True if this speaker has left the group.
+        """
+
+        response = self.__send_command(TRANSPORT_ENDPOINT, UNJOIN_ACTION, UNJOIN_BODY)
+        
+        if (response == UNJOIN_RESPONSE):
+            return True
+        else:
+            return self.__parse_error(response)
+
     def switch_to_line_in(self):
         """ Switch the speaker's input to line-in.
 
@@ -575,9 +604,9 @@ class SoCo(object):
         """
         response = self.__send_command(TRANSPORT_ENDPOINT, GET_CUR_TRACK_ACTION, GET_CUR_TRACK_BODY)
 
-        dom = XML.fromstring(response)
+        dom = XML.fromstring(response.encode('utf-8'))
 
-        track = {}
+        track = {'title': '', 'artist': '', 'album': '', 'album_art': ''}
 
         track['playlist_position'] = dom.findtext('.//Track')
         track['duration'] = dom.findtext('.//TrackDuration')
@@ -586,48 +615,36 @@ class SoCo(object):
         d = dom.findtext('.//TrackMetaData')
 
         # Duration seems to be '0:00:00' when listening to radio
-        if track['duration'] == '0:00:00':
+        if d != '' and track['duration'] == '0:00:00':
             metadata = XML.fromstring(d.encode('utf-8'))
 
-            # #Try parse trackinfo
+            #Try parse trackinfo
             trackinfo = metadata.findtext('.//{urn:schemas-rinconnetworks-com:metadata-1-0/}streamContent')
 
-            try:
-                index = trackinfo.find(' - ')
+            index = trackinfo.find(' - ')
 
-                if index > -1:
-                    track['artist'] = trackinfo[:index]
-                    track['title'] = trackinfo[index+3:]
-            except:
+            if index > -1:
+                track['artist'] = trackinfo[:index]
+                track['title'] = trackinfo[index+3:]
+            else:
                 logger.warning('Could not handle track info: "%s"', trackinfo)
                 logger.warning(traceback.format_exc())
-                track['artist'] = ''
-                track['title'] = trackinfo
-
-            track['album'] = ''
-            track['album_art'] = ''
+                track['title'] = trackinfo.encode('utf-8')
 
         # If the speaker is playing from the line-in source, querying for track
         # metadata will return "NOT_IMPLEMENTED".
-        elif d is not '' or d is not 'NOT_IMPLEMENTED':
+        elif d != '' and d != 'NOT_IMPLEMENTED':
             # Track metadata is returned in DIDL-Lite format
             metadata = XML.fromstring(d.encode('utf-8'))
 
-            track['title'] = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}title')
-            track['artist'] = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}creator')
-            track['album'] = metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}album')
+            track['title'] = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}title').encode('utf-8')
+            track['artist'] = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}creator').encode('utf-8')
+            track['album'] = metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}album').encode('utf-8')
 
             album_art = metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}albumArtURI')
 
             if album_art is not None:
                 track['album_art'] = 'http://' + self.speaker_ip + ':1400' + metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}albumArtURI')
-            else:
-                track['album_art'] = ''
-        else:
-            track['title'] = ''
-            track['artist'] = ''
-            track['album'] = ''
-            track['album_art'] = ''
 
         return track
 
@@ -649,7 +666,7 @@ class SoCo(object):
 
             dom = XML.fromstring(response.content)
 
-            self.speaker_info['zone_name'] = dom.findtext('.//ZoneName')
+            self.speaker_info['zone_name'] = dom.findtext('.//ZoneName').encode('utf-8')
             self.speaker_info['zone_icon'] = dom.findtext('.//ZoneIcon')
             self.speaker_info['uid'] = dom.findtext('.//LocalUID')
             self.speaker_info['serial_number'] = dom.findtext('.//SerialNumber')
@@ -687,6 +704,33 @@ class SoCo(object):
                     self.speakers_ip.append(i)
 
             return self.speakers_ip
+             
+    def get_current_transport_info(self):
+        """ Get the current playback state 
+        
+        Returns:
+        A dictionary containing the following information about the speakers playing state
+        current_transport_state (PLAYING, PAUSED_PLAYBACK, STOPPED),
+        current_trasnport_status (OK, ?), current_speed(1,?)
+        
+        This allows us to know if speaker is playing or not. Don't know other states of 
+        CurrentTransportStatus and CurrentSpeed.
+        
+        """
+        response = self.__send_command(TRANSPORT_ENDPOINT, GET_CUR_TRANSPORT_ACTION, GET_CUR_TRANSPORT_BODY) 
+        dom = XML.fromstring(response.encode('utf-8'))
+        
+        playstate = {
+            'current_transport_status': '',
+            'current_transport_state': '',
+            'current_transport_speed': ''
+        }
+
+        playstate['current_transport_state'] = dom.findtext('.//CurrentTransportState')
+        playstate['current_transport_status'] = dom.findtext('.//CurrentTransportStatus')
+        playstate['current_transport_speed'] = dom.findtext('.//CurrentSpeed')
+        
+        return playstate
 
     def get_queue(self, start = 0, max_items = 100):
         """ Get information about the queue.
@@ -702,26 +746,11 @@ class SoCo(object):
         This method is heavly based on Sam Soffes (aka soffes) ruby implementation
 
         """
-        meta_data = {
-            'name': 'Browse',
-            'CONTENT_DIRECTORY_XMLNS': 'urn:schemas-upnp-org:service:ContentDirectory:1',
-            'starting_index': start,
-            'requested_count': max_items
-        }
-
         queue = []
 
-        action = '"%(CONTENT_DIRECTORY_XMLNS)s#%(name)s"' % meta_data
-        body = '''<u:%(name)s xmlns:u="%(CONTENT_DIRECTORY_XMLNS)s">
-                    <ObjectID>Q:0</ObjectID>
-                    <BrowseFlag>BrowseDirectChildren</BrowseFlag>
-                    <Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter>
-                    <StartingIndex>%(starting_index)d</StartingIndex>
-                    <RequestedCount>%(requested_count)d</RequestedCount>
-                    <SortCriteria></SortCriteria>
-                    </u:Browse>''' % meta_data
+        body = GET_QUEUE_BODY_TEMPLATE.format(start, max_items)
 
-        response = self.__send_command('/MediaServer/ContentDirectory/Control', action, body)
+        response = self.__send_command(CONTENT_DIRECTORY_ENDPOINT, BROWSE_ACTION, body)
 
         try:
             dom = XML.fromstring(response.encode('utf-8'))
@@ -751,7 +780,7 @@ class SoCo(object):
                     logger.error(traceback.format_exc())
 
         except:
-            logger.error('Could not handle result from sonos')
+            logger.error('Could not handle result from Sonos')
             logger.error(traceback.format_exc())
 
         return queue
@@ -812,10 +841,84 @@ class SoCo(object):
         speaker will be returned.
         """
         response = self.__send_command(TRANSPORT_ENDPOINT, CLEAR_QUEUE_ACTION, CLEAR_QUEUE_BODY)
+
         if "errorCode" in response:
             return self.__parse_error(response)
         else:
             return True
+
+    def get_favorite_radio_shows(self, start=0, max_items=100):
+        """ Get favorite radio shows from Sonos' Radio app.
+
+        Returns:
+        A list containing the total number of favorites, the number of favorites
+        returned, and the actual list of favorite radio shows, represented as a
+        dictionary with `title` and `uri` keys.
+        
+        Depending on what you're building, you'll want to check to see if the
+        total number of favorites is greater than the amount you
+        requested (`max_items`), if it is, use `start` to page through and
+        get the entire list of favorites.
+
+        """
+        return self.__get_radio_favorites(RADIO_SHOWS, start, max_items)
+
+    def get_favorite_radio_stations(self, start=0, max_items=100):
+        """ Get favorite radio stations from Sonos' Radio app.
+
+        Returns:
+        A list containing the total number of favorites, the number of favorites
+        returned, and the actual list of favorite radio stations, represented
+        as a dictionary with `title` and `uri` keys.
+        
+        Depending on what you're building, you'll want to check to see if the
+        total number of favorites is greater than the amount you
+        requested (`max_items`), if it is, use `start` to page through and
+        get the entire list of favorites.
+
+        """
+        return self.__get_radio_favorites(RADIO_STATIONS, start, max_items)
+
+    def __get_radio_favorites(self, favorite_type, start=0, max_items=100):
+        """ Helper method for `get_favorite_radio_*` methods.
+
+        Arguments:
+        favorite_type -- Specify either `RADIO_STATIONS` or `RADIO_SHOWS`.
+        start -- Which number to start the retrieval from. Used for paging.
+        max_items -- The total number of results to return.
+
+        """
+        if favorite_type != RADIO_SHOWS or RADIO_STATIONS:
+            favorite_type = RADIO_STATIONS
+
+        body = GET_RADIO_FAVORITES_BODY_TEMPLATE.format(favorite_type, start, max_items)
+            
+        response = self.__send_command(CONTENT_DIRECTORY_ENDPOINT, BROWSE_ACTION, body)
+        
+        dom = XML.fromstring(response.encode('utf-8'))
+
+        result = {}
+        favorites = []
+
+        d = dom.findtext('.//Result')
+
+        if d != '':
+            # Favorites are returned in DIDL-Lite format
+            metadata = XML.fromstring(d.encode('utf-8'))
+
+            for item in metadata.findall('.//{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}item'):
+                favorite = {}
+
+                favorite['title'] = item.findtext('.//{http://purl.org/dc/elements/1.1/}title').encode('utf-8')
+                favorite['uri'] = item.findtext('.//{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res')
+
+                favorites.append(favorite)
+
+        result['total'] = dom.findtext('.//TotalMatches', 0)
+        result['returned'] = len(favorites)
+        result['favorites'] = favorites
+
+        return result
 
     def __send_command(self, endpoint, action, body):
         """ Send a raw command to the Sonos speaker.
@@ -856,7 +959,6 @@ class SoCo(object):
             return response
 
 
-
 # definition section
 
 PLAYER_SEARCH = """M-SEARCH * HTTP/1.1
@@ -865,13 +967,16 @@ MAN: ssdp:discover
 MX: 1
 ST: urn:schemas-upnp-org:device:ZonePlayer:1"""
 
-
 MCAST_GRP = "239.255.255.250"
 MCAST_PORT = 1900
+
+RADIO_STATIONS = 0
+RADIO_SHOWS = 1
 
 TRANSPORT_ENDPOINT = '/MediaRenderer/AVTransport/Control'
 RENDERING_ENDPOINT = '/MediaRenderer/RenderingControl/Control'
 DEVICE_ENDPOINT = '/DeviceProperties/Control'
+CONTENT_DIRECTORY_ENDPOINT = '/MediaServer/ContentDirectory/Control'
 
 ENQUEUE_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 ENQUEUE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
@@ -888,8 +993,6 @@ PLAY_FROM_QUEUE_BODY_TEMPLATE = '''
 </u:SetAVTransportURI>
 '''
 PLAY_FROM_QUEUE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
-
-
 
 PAUSE_ACTION =  '"urn:schemas-upnp-org:service:AVTransport:1#Pause"'
 PAUSE_BODY = '<u:Pause xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Speed>1</Speed></u:Pause>'
@@ -941,6 +1044,10 @@ SET_TRANSPORT_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#SetAVTranspo
 JOIN_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>x-rincon:{master_uid}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 JOIN_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
 
+UNJOIN_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#BecomeCoordinatorOfStandaloneGroup"'
+UNJOIN_BODY = '<u:BecomeCoordinatorOfStandaloneGroup xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Speed>1</Speed></u:BecomeCoordinatorOfStandaloneGroup>'
+UNJOIN_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:BecomeCoordinatorOfStandaloneGroupResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:BecomeCoordinatorOfStandaloneGroupResponse></s:Body></s:Envelope>'
+
 SET_LINEIN_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>x-rincon-stream:{speaker_uid}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 SET_LINEIN_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
 
@@ -950,6 +1057,9 @@ SET_LEDSTATE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/en
 
 GET_CUR_TRACK_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo"'
 GET_CUR_TRACK_BODY = '<u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Channel>Master</Channel></u:GetPositionInfo>'
+
+GET_CUR_TRANSPORT_ACTION = '"urn:schema-upnp-org:service:AVTransport:1#GetTransportInfo"'
+GET_CUR_TRANSPORT_BODY = '<u:GetTransportInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID></u:GetTransportInfo></s:Body></s:Envelope>'
 
 SOAP_TEMPLATE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>{body}</s:Body></s:Envelope>'
 
@@ -964,11 +1074,12 @@ SEEK_TRACK_BODY_TEMPLATE = '''
 
 SEEK_TIMESTAMP_BODY_TEMPLATE = '<u:Seek xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Unit>REL_TIME</Unit><Target>{timestamp}</Target></u:Seek>'
 
-PLAY_URI_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
+PLAY_URI_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData>{meta}</CurrentURIMetaData></u:SetAVTransportURI>'
+
+GET_QUEUE_BODY_TEMPLATE = '<u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1#Browse"><ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter><StartingIndex>{0}</StartingIndex><RequestedCount>{1}</RequestedCount><SortCriteria></SortCriteria></u:Browse>'
 
 ADD_TO_QUEUE_ACTION = 'urn:schemas-upnp-org:service:AVTransport:1#AddURIToQueue'
 ADD_TO_QUEUE_BODY_TEMPLATE = '<u:AddURIToQueue xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><EnqueuedURI>{uri}</EnqueuedURI><EnqueuedURIMetaData></EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>1</EnqueueAsNext></u:AddURIToQueue>'
-
 
 REMOVE_FROM_QUEUE_ACTION = 'urn:schemas-upnp-org:service:AVTransport:1#RemoveTrackFromQueue'
 REMOVE_FROM_QUEUE_BODY_TEMPLATE = '<u:RemoveTrackFromQueue xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>{instance}</InstanceID><ObjectID>{objid}</ObjectID><UpdateID>{updateid}</UpdateID></u:RemoveTrackFromQueue>'
@@ -976,3 +1087,5 @@ REMOVE_FROM_QUEUE_BODY_TEMPLATE = '<u:RemoveTrackFromQueue xmlns:u="urn:schemas-
 CLEAR_QUEUE_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#RemoveAllTracksFromQueue"'
 CLEAR_QUEUE_BODY = '<u:RemoveAllTracksFromQueue xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID></u:RemoveAllTracksFromQueue>'
 
+BROWSE_ACTION = '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"'
+GET_RADIO_FAVORITES_BODY_TEMPLATE = '<u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>R:0/{0}</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter><StartingIndex>{1}</StartingIndex><RequestedCount>{2}</RequestedCount><SortCriteria/></u:Browse>'
