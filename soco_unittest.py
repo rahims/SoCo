@@ -118,6 +118,40 @@ class GetCurrentTrackInfo(unittest.TestCase):
             'Info does not contain the proper keys')
 
 
+class AddToQueue(unittest.TestCase):
+    """ Unit test for the add_to_queue method """
+
+    ### TODO Finish implementation
+
+    def test(self):
+        """ Gets the current queue, adds the last item of the current queue
+        and then compares the length of the old queue with the new and
+        checks that the last two elements are identical
+        """
+        import time
+        SOCO.pause()
+        old_queue = SOCO.get_queue()
+        self.assertTrue(len(old_queue) > 0,
+            'Unit tests must be run with at least one item in the queue')
+        # Add new element and check
+        self.assertEqual(SOCO.add_to_queue(old_queue[-1]['uri']),
+                         len(old_queue) + 1)
+        new_queue = SOCO.get_queue()
+        self.assertEqual(len(new_queue)-1, len(old_queue))
+        self.assertEqual(new_queue[-1], new_queue[-2])
+        # Clean up
+        print time.time()
+        SOCO.clear_queue()
+        print time.time()
+        for item in old_queue:
+            SOCO.add_to_queue(item['uri'])
+        print time.time()
+        SOCO.play()
+        print time.time()
+        
+        
+
+
 class GetQueue(unittest.TestCase):
     """ Unit test for the get_queue method """
 
