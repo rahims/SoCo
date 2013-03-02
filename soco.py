@@ -4,7 +4,7 @@
 
 # Will be parsed by setup.py to determine package metadata
 __author__ = 'Rahim Sonawalla <rsonawalla@gmail.com>'
-__version__ = '0.4'
+__version__ = '0.5'
 __website__ = 'https://github.com/rahims/SoCo'
 __license__ = 'MIT License'
 
@@ -72,6 +72,7 @@ class SoCo(object):
     get_speaker_info -- Get information about the Sonos speaker.
     partymode -- Put all the speakers in the network in the same group.
     join -- Join this speaker to another "master" speaker.
+    unjoin -- Remove this speaker from a group.
     get_speaker_info -- Get information on this speaker.
     get_queue -- Get information about the queue.
     get_current_transport_info -- get speakers playing state
@@ -194,11 +195,12 @@ class SoCo(object):
             return self.__parse_error(response)
 
 
-    def play_uri(self, uri=''):
-        """Play a given stream. Pauses the queue.
+    def play_uri(self, uri='', meta=''):
+        """ Play a given stream. Pauses the queue.
 
         Arguments:
         uri -- URI of a stream to be played.
+        meta --- The track metadata to show in the player, DIDL format.
 
         Returns:
         True if the Sonos speaker successfully started playing the track.
@@ -208,7 +210,8 @@ class SoCo(object):
         speaker will be returned.
 
         """
-        body = PLAY_URI_BODY_TEMPLATE.format(uri=uri)
+
+        body = PLAY_URI_BODY_TEMPLATE.format(uri=uri, meta=meta)
 
         response = self.__send_command(TRANSPORT_ENDPOINT, SET_TRANSPORT_ACTION, body)
 
@@ -540,6 +543,23 @@ class SoCo(object):
         else:
             return self.__parse_error(response)
 
+    def unjoin(self):
+        """ Remove this speaker from a group.
+
+        Seems to work ok even if you remove what was previously the group master
+        from it's own group. If the speaker was not in a group also returns ok.
+
+		Returns:
+		True if this speaker has left the group.
+        """
+
+        response = self.__send_command(TRANSPORT_ENDPOINT, UNJOIN_ACTION, UNJOIN_BODY)
+        
+        if (response == UNJOIN_RESPONSE):
+            return True
+        else:
+            return self.__parse_error(response)
+
     def switch_to_line_in(self):
         """ Switch the speaker's input to line-in.
 
@@ -714,17 +734,22 @@ class SoCo(object):
         
         Returns:
         A dictionary containing the following information about the speakers playing state
-        current_transport_state (PLAYING, PAUSED_PLAYBACK, STOPPED), current_trasnport_status (OK, ?),
-        current_speed(1,?)
+        current_transport_state (PLAYING, PAUSED_PLAYBACK, STOPPED),
+        current_trasnport_status (OK, ?), current_speed(1,?)
         
         This allows us to know if speaker is playing or not. Don't know other states of 
-        CurrentTransportStatus,CurrentSpeed
+        CurrentTransportStatus and CurrentSpeed.
         
         """
         response = self.__send_command(TRANSPORT_ENDPOINT, GET_CUR_TRANSPORT_ACTION, GET_CUR_TRANSPORT_BODY) 
         dom = XML.fromstring(response.encode('utf-8'))
         
-        playstate = {'current_transport_status' : '', 'current_transport_state' : '', 'current_transport_speed' : ''}
+        playstate = {
+            'current_transport_status': '',
+            'current_transport_state': '',
+            'current_transport_speed': ''
+        }
+
         playstate['current_transport_state'] = dom.findtext('.//CurrentTransportState')
         playstate['current_transport_status'] = dom.findtext('.//CurrentTransportStatus')
         playstate['current_transport_speed'] = dom.findtext('.//CurrentSpeed')
@@ -893,7 +918,7 @@ class SoCo(object):
         body = GET_RADIO_FAVORITES_BODY_TEMPLATE.format(favorite_type, start, max_items)
             
         response = self.__send_command(CONTENT_DIRECTORY_ENDPOINT, BROWSE_ACTION, body)
-
+        
         dom = XML.fromstring(response.encode('utf-8'))
 
         result = {}
@@ -1043,6 +1068,10 @@ SET_TRANSPORT_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#SetAVTranspo
 JOIN_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>x-rincon:{master_uid}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 JOIN_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
 
+UNJOIN_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#BecomeCoordinatorOfStandaloneGroup"'
+UNJOIN_BODY = '<u:BecomeCoordinatorOfStandaloneGroup xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Speed>1</Speed></u:BecomeCoordinatorOfStandaloneGroup>'
+UNJOIN_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:BecomeCoordinatorOfStandaloneGroupResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:BecomeCoordinatorOfStandaloneGroupResponse></s:Body></s:Envelope>'
+
 SET_LINEIN_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>x-rincon-stream:{speaker_uid}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 SET_LINEIN_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
 
@@ -1069,7 +1098,7 @@ SEEK_TRACK_BODY_TEMPLATE = '''
 
 SEEK_TIMESTAMP_BODY_TEMPLATE = '<u:Seek xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Unit>REL_TIME</Unit><Target>{timestamp}</Target></u:Seek>'
 
-PLAY_URI_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
+PLAY_URI_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData>{meta}</CurrentURIMetaData></u:SetAVTransportURI>'
 
 GET_QUEUE_BODY_TEMPLATE = '<u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1#Browse"><ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter><StartingIndex>{0}</StartingIndex><RequestedCount>{1}</RequestedCount><SortCriteria></SortCriteria></u:Browse>'
 
