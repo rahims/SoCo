@@ -31,11 +31,14 @@ class Volume(unittest.TestCase):
         SOCO.volume(old)
 
     def test_invalid_arguments(self):
-        """ Tests if the set functionality fails predictively when given
-        invalid values
+        """ Tests if the set functionality coerces into range when given
+        integers outside of allowed range
         """
-        self.assertEqual(SOCO.volume(self.valid_values[0] - 1), 402)
-        self.assertEqual(SOCO.volume(self.valid_values[-1] + 1), 402)
+        old = SOCO.volume()
+        # NOTE We don't test coerce from too large values, since that would
+        # put the unit at full volume
+        self.assertTrue(SOCO.volume(self.valid_values[0] - 1))
+        SOCO.volume(old)
 
 
 class Bass(unittest.TestCase):
@@ -118,45 +121,44 @@ class GetCurrentTrackInfo(unittest.TestCase):
             'Info does not contain the proper keys')
 
 
-class AddToQueue(unittest.TestCase):
+class AddToQueue():
     """ Unit test for the add_to_queue method """
 
-    ### TODO Finish implementation
+    ### TODO Finish implementation, awaits
+    # https://github.com/rahims/SoCo/issues/25
 
     def test(self):
         """ Gets the current queue, adds the last item of the current queue
         and then compares the length of the old queue with the new and
         checks that the last two elements are identical
         """
-        import time
-        SOCO.pause()
-        old_queue = SOCO.get_queue()
+        #print SOCO.get_current_transport_info()
+        #SOCO.pause()
+        old_queue = SOCO.get_queue(0, 10)
+        print old_queue
         self.assertTrue(len(old_queue) > 0,
             'Unit tests must be run with at least one item in the queue')
         # Add new element and check
         self.assertEqual(SOCO.add_to_queue(old_queue[-1]['uri']),
                          len(old_queue) + 1)
         new_queue = SOCO.get_queue()
-        self.assertEqual(len(new_queue)-1, len(old_queue))
+        self.assertEqual(len(new_queue) - 1, len(old_queue))
         self.assertEqual(new_queue[-1], new_queue[-2])
         # Clean up
-        print time.time()
         SOCO.clear_queue()
-        print time.time()
         for item in old_queue:
             SOCO.add_to_queue(item['uri'])
-        print time.time()
         SOCO.play()
-        print time.time()
-        
-        
 
 
-class GetQueue(unittest.TestCase):
+class GetQueue():
     """ Unit test for the get_queue method """
 
+    ### TODO Reactivate, awaits
+    # https://github.com/rahims/SoCo/issues/25
+
     def setUp(self):  # pylint: disable-msg=C0103
-        # The value in this list must be kept up to date with the values in
+        # The values in this list must be kept up to date with the values in
         # the test_get doc string
         self.track_keys = ['album', 'artist', 'uri', 'album_art', 'title']
 
@@ -166,6 +168,7 @@ class GetQueue(unittest.TestCase):
         title
         """
         queue = SOCO.get_queue()
+        print 'GET'
         self.assertIsInstance(queue, list, 'Returned queue is not a list')
         self.assertTrue(len(queue) > 0,
             'Unit tests must be run with at least one item in the queue')
@@ -173,6 +176,69 @@ class GetQueue(unittest.TestCase):
             self.assertIsInstance(item, dict, 'Item in queue is not a dict')
             self.assertEqual(item.keys(), self.track_keys,
                 'Item in queue does not contain the proper keys')
+
+
+class GetCurrentTransportInfo(unittest.TestCase):
+    """ Unit test for the get_current_transport_info method """
+
+    def setUp(self):  # pylint: disable-msg=C0103
+        # The values in this list must be kept up to date with the values in
+        # the test doc string
+        self.track_keys = sorted(['current_transport_status',
+            'current_transport_state', 'current_transport_speed'])
+
+    def test(self):
+        """ Tests if the return value is a dictionary that contains the keys:
+        current_transport_status, current_transport_state,
+        current_transport_speed
+        and that values have been found for all keys, i.e. they are not None
+        """
+        transport_info = SOCO.get_current_transport_info()
+        self.assertIsInstance(transport_info, dict, 'Returned transport info '
+            'is not a dictionary')
+        self.assertEqual(self.track_keys, sorted(transport_info.keys()),
+            'The keys in speaker info are not the expected ones: {0}'
+            ''.format(self.track_keys))
+        for key, value in transport_info.items():
+            self.assertIsNotNone(value, 'The value for the key "{0}" is None '
+                'which indicate that no value was found for it'.format(key))
+
+
+class GetSpeakerInfo(unittest.TestCase):
+    """ Unit test for the get_speaker_info method """
+
+    def setUp(self):  # pylint: disable-msg=C0103
+        # The values in this list must be kept up to date with the values in
+        # the test doc string
+        self.info_keys = sorted(['zone_name', 'zone_icon', 'uid',
+            'serial_number', 'software_version', 'hardware_version',
+            'mac_address'])
+
+    def test(self):
+        """ Tests if the return value is a dictionary that contains the keys:
+        zone_name, zone_icon, uid, serial_number, software_version,
+        hardware_version, mac_address
+        and that values have been found for all keys, i.e. they are not None
+        """
+        speaker_info = SOCO.get_speaker_info()
+        self.assertIsInstance(speaker_info, dict, 'Returned speaker info is '
+            'not a dictionary')
+        self.assertEqual(self.info_keys, sorted(speaker_info.keys()), 'The '
+            'keys in speaker info are not the expected ones: {0}'
+            ''.format(self.info_keys))
+        for key, value in speaker_info.items():
+            self.assertIsNotNone(value, 'The value for the key "{0}" is None '
+                'which indicate that no value was found for it'.format(key))
+
+
+class GetSpeakersIp():
+    """ Unit tests for the get_speakers_ip method """
+
+    ### TODO Finish implementation, awaits
+    # https://github.com/rahims/SoCo/issues/??
+
+    def test(self):
+        pass
 
 
 if __name__ == "__main__":
@@ -216,8 +282,7 @@ if __name__ == "__main__":
         NAMES_AND_IPS = get_ips_and_names()
         sys.stdout.write(PATTERN.format('IP', 'Name'))
         for items in NAMES_AND_IPS:
-            sys.stdout.write(PATTERN.format(items[0],
-                                            items[1].encode('utf-8')))
+            sys.stdout.write(PATTERN.format(items[0], items[1]))
     elif ARGS.coverage:
         # Get all but 'private' methods from soco
         METHODS = []
