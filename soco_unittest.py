@@ -107,8 +107,8 @@ class GetCurrentTrackInfo(unittest.TestCase):
     def setUp(self):  # pylint: disable-msg=C0103
         # The value in this list must be kept up to date with the values in
         # the test_get doc string
-        self.info_keys = ['album', 'artist', 'title', 'uri',
-            'playlist_position', 'duration', 'album_art']
+        self.info_keys = sorted(['album', 'artist', 'title', 'uri',
+            'playlist_position', 'duration', 'album_art'])
 
     def test_get(self):
         """ Test is the return value is a dictinary and contains the following
@@ -117,7 +117,7 @@ class GetCurrentTrackInfo(unittest.TestCase):
         """
         info = SOCO.get_current_track_info()
         self.assertIsInstance(info, dict, 'Returned info is not a dict')
-        self.assertEqual(info.keys(), self.info_keys,
+        self.assertEqual(sorted(info.keys()), self.info_keys,
             'Info does not contain the proper keys')
 
 
@@ -239,6 +239,42 @@ class GetSpeakersIp():
 
     def test(self):
         pass
+
+
+class Pause(unittest.TestCase):
+    """ Unittest for the pause method """
+
+    def test(self):
+        """ Tests if the pause method works """
+        SOCO.play()
+        old = SOCO.get_current_transport_info()['current_transport_state']
+        return_value = SOCO.pause()
+        self.assertTrue(return_value, 'pause did not return True')
+        new = SOCO.get_current_transport_info()['current_transport_state']
+        self.assertEqual(new, 'PAUSED_PLAYBACK', 'State after pause is not '
+            '"PAUSED_PLAYBACK"')
+        self.assertNotEqual(old, new, 'State after pause is not different '
+            'from state after play')
+        SOCO.play()
+
+
+class Stop(unittest.TestCase):
+    """ Unittest for the stop method """
+
+    # TODO recover play state after stop
+
+    def test(self):
+        """ Tests if the stop method works """
+        SOCO.play()
+        old = SOCO.get_current_transport_info()['current_transport_state']
+        return_value = SOCO.stop()
+        self.assertTrue(return_value, 'stop did not return True')
+        new = SOCO.get_current_transport_info()['current_transport_state']
+        self.assertEqual(new, 'STOPPED', 'State after stop is not '
+            '"STOPPED"')
+        self.assertNotEqual(old, new, 'State after stop is not different '
+            'from state after play')
+        SOCO.play()
 
 
 if __name__ == "__main__":
