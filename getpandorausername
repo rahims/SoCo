@@ -1,0 +1,12 @@
+import xml.etree.cElementTree as XML
+
+import requests
+import select
+import socket
+import logging, traceback
+import re
+
+response = requests.get('http://www.pandora.com/services/ajax/?method=authenticate.emailToWebname&email=scottscool%40gmail.com')
+
+print response
+

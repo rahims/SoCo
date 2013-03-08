@@ -15,6 +15,11 @@ import select
 import socket
 import logging, traceback
 
+import urllib2 #used for pandora
+import json #used for pandora
+import urllib #used for pandora
+import re
+
 logger = logging.getLogger(__name__)
 
 __all__ = ['SonosDiscovery', 'SoCo']
@@ -81,6 +86,9 @@ class SoCo(object):
     clear_queue -- Remove all tracks from queue
     get_favorite_radio_shows -- Get favorite radio shows from Sonos' Radio app.
     get_favorite_radio_stations -- Get favorite radio stations.
+    get_pandora_stations -- pulls a list of pandora stations from the pandora account on sonos. Panodra must be public account.
+    play_music_station -- will play a streatiming service station 
+    get_music_service_email -- will pull the email account associated with a music service.
 
     """
 
@@ -91,7 +99,7 @@ class SoCo(object):
         self.speaker_info = {} # Stores information about the current speaker
 
    
-    def set_player_name(self,playername=False):
+    def set_player_name(self,player_name):
         """  Sets the name of the player 
 
         Returns:
@@ -102,15 +110,14 @@ class SoCo(object):
         speaker will be returned.
 
         """
-        if playername is not False:
-            body = SET_PLAYER_NAME_BODY_TEMPLATE.format(playername=playername)
+        body = SET_PLAYER_NAME_BODY_TEMPLATE.format(player_name=player_name)
         
-            response = self.__send_command(DEVICE_ENDPOINT,SET_PLAYER_NAME_ACTION,body)
+        response = self.__send_command(DEVICE_ENDPOINT,SET_PLAYER_NAME_ACTION,body)
         
-            if (response == SET_PLAYER_NAME_RESPONSE):
-                return True
-            else:
-                return self.__parse_error(response)
+        if (response == SET_PLAYER_NAME_RESPONSE):
+           return True
+        else:
+            return self.__parse_error(response)    
 
 
     def set_play_mode(self, playmode):
@@ -887,6 +894,7 @@ class SoCo(object):
         """
         return self.__get_radio_favorites(RADIO_SHOWS, start, max_items)
 
+
     def get_favorite_radio_stations(self, start=0, max_items=100):
         """ Get favorite radio stations from Sonos' Radio app.
 
@@ -902,6 +910,72 @@ class SoCo(object):
 
         """
         return self.__get_radio_favorites(RADIO_STATIONS, start, max_items)
+
+    def get_music_service_email(self, music_service_name):
+
+        music_services = {
+                'Pandora':'3',
+                'Rhapsody':'2',
+                'Last.fm':'11',
+                'iHeartRadio':'1543',
+                'Auepo':'2055',
+                'Rdio':'2823',
+                'Sticher':'3335',
+                'DAR.fm':'6151',
+                'Amazon Cloud':'6663',
+                'Songa':'7431',
+                'Murfie':'8455',
+                '7Digital':'9735',
+                'Slacker':'5359'}
+
+        music_serice_to_find = music_services[music_service_name]
+        music_service_credentials = self.__get_music_service_settings()
+        for sublist in music_service_credentials:
+            if sublist[0] == music_serice_to_find:
+                return sublist[1]
+            break
+
+    def play_music_station(self, music_service, music_service_station_title,music_service_station_id, music_service_email):
+        music_service_conversion = {'Pandora':'pndrradio'}
+        music_service = music_service_conversion[music_service]
+        body = PLAY_STATION_BODY_TEMPLATE.format(music_service = music_service, music_service_station_title = music_service_station_title, music_service_station_id = music_service_station_id, music_service_email = music_service_email)
+
+        response = self.__send_command(TRANSPORT_ENDPOINT, PLAY_STATION_ACTION, body)
+
+        if (response == JOIN_RESPONSE):
+            return True
+        else:
+            return self.__parse_error(response)
+
+    def get_pandora_stations(self, music_service_email):
+        email_account = urllib.unquote_plus(music_service_email)
+        get_user_name = urllib2.Request("http://www.pandora.com/services/ajax/?method=authenticate.emailToWebname&email=" + email_account)
+        opener = urllib2.build_opener()
+        user_name_data = opener.open(get_user_name)
+        json_response = json.loads(user_name_data.read())
+        user_name = json_response['result']['webname']
+
+        get_pandora_user_data = requests.get('http://feeds.pandora.com/feeds/people/' + user_name + '/stations.xml')
+
+        pandora_stations = {}
+        pandora_DOM = XML.fromstring(get_pandora_user_data.content)
+        for stations in pandora_DOM.findall(".//item"):
+            title = stations.find("title").text
+            station_code = stations.find('.//{http://www.pandora.com/rss/1.0/modules/pandora/}stationCode').text
+            pandora_stations[title] = station_code.strip("sh")
+        return pandora_stations
+
+    def __get_music_service_settings(self):
+        response = requests.get('http://192.168.1.59:1400/status/securesettings')
+
+        settings_dom = XML.fromstring(response.content)
+        music_login = settings_dom.findtext('.//Command')
+        music_login =  XML.fromstring(music_login).attrib['Value']
+
+        services_login_list = music_login.split(',')
+        #should put this in a dictionary instead
+        music_service_credentials = [(services_login_list+[services_login_list[0]])[i:i+4] for i in range(0, len(services_login_list), 4)]
+        return music_service_credentials
 
     def __get_radio_favorites(self, favorite_type, start=0, max_items=100):
         """ Helper method for `get_favorite_radio_*` methods.
@@ -1115,6 +1189,9 @@ BROWSE_ACTION = '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"'
 GET_RADIO_FAVORITES_BODY_TEMPLATE = '<u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>R:0/{0}</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter><StartingIndex>{1}</StartingIndex><RequestedCount>{2}</RequestedCount><SortCriteria/></u:Browse>'
 
 SET_PLAYER_NAME_ACTION ='"urn:schemas-upnp-org:service:DeviceProperties:1#SetZoneAttributes"'
-SET_PLAYER_NAME_BODY_TEMPLATE = '"<u:SetZoneAttributes xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"><DesiredZoneName>{playername}</DesiredZoneName><DesiredIcon /><DesiredConfiguration /></u:SetZoneAttributes>"'
+SET_PLAYER_NAME_BODY_TEMPLATE = '"<u:SetZoneAttributes xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"><DesiredZoneName>{player_name}</DesiredZoneName><DesiredIcon /><DesiredConfiguration /></u:SetZoneAttributes>"'
 SET_PLAYER_NAME_RESPONSE ='"<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetZoneAttributesResponse xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"></u:SetZoneAttributesResponse></s:Body></s:Envelope>"'
 
+PLAY_STATION_ACTION ='"urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI"'
+PLAY_STATION_BODY_TEMPLATE ='"<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{music_service}:{music_service_station_id}</CurrentURI><CurrentURIMetaData>&lt;DIDL-Lite xmlns:dc=&quot;http://purl.org/dc/elements/1.1/&quot; xmlns:upnp=&quot;urn:schemas-upnp-org:metadata-1-0/upnp/&quot;xmlns:r=&quot;urn:schemas-rinconnetworks-com:metadata-1-0/&quot; xmlns=&quot;urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/&quot;&gt;&lt;item id=&quot;OOOX{music_service_station_id}&quot; parentID=&quot;0&quot; restricted=&quot;true&quot;&gt;&lt;dc:title&gt;{music_service_station_title}&lt;/dc:title&gt;&lt;upnp:class&gt;object.item.audioItem.audioBroadcast&lt;/upnp:class&gt;&lt;desc id=&quot;cdudn&quot; nameSpace=&quot;urn:schemas-rinconnetworks-com:metadata-1-0/&quot;&gt;SA_RINCON3_{music_service_email}&lt;/desc&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;</CurrentURIMetaData></u:SetAVTransportURI></s:Body></s:Envelope>'
+PLAY_STATION_RESPONSE ='<u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse>'
