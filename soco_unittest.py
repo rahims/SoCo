@@ -15,6 +15,8 @@ import argparse
 class Volume(unittest.TestCase):
     """ Unit tests for the volume method """
 
+    # TODO Add unittest to check if set 0 works correctly
+
     def setUp(self):  # pylint: disable-msg=C0103
         self.valid_values = range(101)
 
