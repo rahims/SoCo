@@ -1,7 +1,6 @@
 
 """ Example implementation of a plugin """
 
-import soco
 
 class ExamplePlugin(object):
     """ This file serves as an example of a SoCo plugin """
@@ -19,13 +18,13 @@ class ExamplePlugin(object):
         """ This is just a reimplementation of the ordinary play function, to
         show how we can use the general upnp methods from soco
         """
-        response = self.soco.__send_command(TRANSPORT_ENDPOINT,
+        response = self.soco.send_command(TRANSPORT_ENDPOINT,
             PLUGIN_PLAY_ACTION, PLUGIN_PLAY_BODY)
 
         if (response == PLUGIN_PLAY_RESPONSE):
             return True
         else:
-            return self.soco.__parse_error(response)
+            return self.soco.parse_error(response)
 
     def music_plugin_stop(self):
         """ This methods shows how, if we need it, we can use the soco
