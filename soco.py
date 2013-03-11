@@ -14,6 +14,8 @@ import requests
 import select
 import socket
 import logging, traceback
+import sys
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,11 @@ class SoCo(object):
     def __init__(self, speaker_ip):
         self.speaker_ip = speaker_ip
         self.speaker_info = {} # Stores information about the current speaker
+
+        # Plugin initialization
+        socodir = os.path.dirname(__file__)
+        sys.path.insert(0, socodir + os.sep + 'plugins')
+        self.plugin = None
 
    
     def set_player_name(self,playername=False):
@@ -883,6 +890,16 @@ class SoCo(object):
             return self.__parse_error(response)
         else:
             return True
+
+    def set_plugin(self, name, arguments):
+        """ Select the music plugin """
+        plugin_module = __import__(name.lower())
+        plugin_class = getattr(plugin_module, name)
+        self.plugin = plugin_class(self, arguments)
+
+    def get_plugin(self):
+        """ Return the currently loaded plugin instanse """
+        return self.plugin
 
     def get_favorite_radio_shows(self, start=0, max_items=100):
         """ Get favorite radio shows from Sonos' Radio app.
