@@ -4,7 +4,7 @@
 
 # Will be parsed by setup.py to determine package metadata
 __author__ = 'Rahim Sonawalla <rsonawalla@gmail.com>'
-__version__ = '0.4'
+__version__ = '0.5'
 __website__ = 'https://github.com/rahims/SoCo'
 __license__ = 'MIT License'
 
@@ -28,7 +28,7 @@ class SonosDiscovery(object):
     """
 
     def __init__(self):
-        self._sock = socket.socket(
+        self._sock = socket.socket( 
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
 
@@ -59,9 +59,10 @@ class SoCo(object):
     seek -- Move the currently playing track a given elapsed time.
     next -- Go to the next track.
     previous -- Go back to the previous track.
-    mute -- Mute (or unmute) the speaker.
+    mute -- Get or Set Mute (or unmute) the speaker.
     volume -- Get or set the volume of the speaker.
     bass -- Get or set the speaker's bass EQ.
+    set_player_name  -- set the name of the Sonos Speaker
     treble -- Set the speaker's treble EQ.
     set_play_mode -- Change repeat and shuffle settings on the queue.
     set_loudness -- Turn on (or off) the speaker's loudness compensation.
@@ -72,8 +73,8 @@ class SoCo(object):
     partymode -- Put all the speakers in the network in the same group.
     join -- Join this speaker to another "master" speaker.
     unjoin -- Remove this speaker from a group.
-    get_speaker_info -- Get information on this speaker.
     get_queue -- Get information about the queue.
+    get_current_transport_info -- get speakers playing state
     add_to_queue -- Add a track to the end of the queue
     remove_from_queue -- Remove a track from the queue
     clear_queue -- Remove all tracks from queue
@@ -87,6 +88,29 @@ class SoCo(object):
     def __init__(self, speaker_ip):
         self.speaker_ip = speaker_ip
         self.speaker_info = {} # Stores information about the current speaker
+
+   
+    def set_player_name(self,playername=False):
+        """  Sets the name of the player 
+
+        Returns:
+        True if the player name was successfully set.
+
+        If an error occurs, we'll attempt to parse the error and return a UPnP
+        error code. If that fails, the raw response sent back from the Sonos
+        speaker will be returned.
+
+        """
+        if playername is not False:
+            body = SET_PLAYER_NAME_BODY_TEMPLATE.format(playername=playername)
+        
+            response = self.__send_command(DEVICE_ENDPOINT,SET_PLAYER_NAME_ACTION,body)
+        
+            if (response == SET_PLAYER_NAME_RESPONSE):
+                return True
+            else:
+                return self.__parse_error(response)
+
 
     def set_play_mode(self, playmode):
         """ Sets the play mode for the queue. Case-insensitive options are:
@@ -171,10 +195,11 @@ class SoCo(object):
 
 
     def play_uri(self, uri='', meta=''):
-        """Play a given stream. Pauses the queue.
+        """ Play a given stream. Pauses the queue.
 
         Arguments:
         uri -- URI of a stream to be played.
+        meta --- The track metadata to show in the player, DIDL format.
 
         Returns:
         True if the Sonos speaker successfully started playing the track.
@@ -185,7 +210,7 @@ class SoCo(object):
 
         """
 
-        body = PLAY_URI_BODY_TEMPLATE.format(uri=uri,meta=meta)
+        body = PLAY_URI_BODY_TEMPLATE.format(uri=uri, meta=meta)
 
         response = self.__send_command(TRANSPORT_ENDPOINT, SET_TRANSPORT_ACTION, body)
 
@@ -299,7 +324,7 @@ class SoCo(object):
         else:
             return self.__parse_error(response)
 
-    def mute(self, mute):
+    def mute(self, mute=None):
         """ Mute or unmute the Sonos speaker.
 
         Arguments:
@@ -307,24 +332,36 @@ class SoCo(object):
 
         Returns:
         True if the Sonos speaker was successfully muted or unmuted.
+        
+        If the mute argument was not specified: returns the current mute status
+        0 for unmuted, 1 for muted
 
         If an error occurs, we'll attempt to parse the error and return a UPnP
         error code. If that fails, the raw response sent back from the Sonos
         speaker will be returned.
 
         """
-        mute_value = '1' if mute else '0'
+        if mute is None:
+            response = self.__send_command(RENDERING_ENDPOINT, GET_MUTE_ACTION, GET_MUTE_BODY)
 
-        body = MUTE_BODY_TEMPLATE.format(mute=mute_value)
-
-        response = self.__send_command(RENDERING_ENDPOINT, MUTE_ACTION, body)
-
-        if (response == MUTE_RESPONSE):
-            return True
+            dom = XML.fromstring(response)
+            
+            muteState = dom.findtext('.//CurrentMute')
+                        
+            return int(muteState)
         else:
-            return self.parse(response)
+            mute_value = '1' if mute else '0'
+    
+            body = MUTE_BODY_TEMPLATE.format(mute=mute_value)
+    
+            response = self.__send_command(RENDERING_ENDPOINT, MUTE_ACTION, body)
+    
+            if (response == MUTE_RESPONSE):
+                return True
+            else:
+                return self.parse(response)
 
-    def volume(self, volume=False):
+    def volume(self, volume=None):
         """ Get or set the Sonos speaker volume.
 
         Arguments:
@@ -342,7 +379,7 @@ class SoCo(object):
         speaker will be returned.
 
         """
-        if volume:
+        if volume is not None:
             volume = max(0, min(volume, 100)) # Coerce in range
             body = SET_VOLUME_BODY_TEMPLATE.format(volume=volume)
 
@@ -361,7 +398,7 @@ class SoCo(object):
 
             return int(volume)
 
-    def bass(self, bass=False):
+    def bass(self, bass=None):
         """ Get or set the Sonos speaker's bass EQ.
 
         Arguments:
@@ -378,7 +415,7 @@ class SoCo(object):
         speaker will be returned.
 
         """
-        if bass is not False:
+        if bass is not None:
             bass = max(-10, min(bass, 10)) # Coerce in range
             body = SET_BASS_BODY_TEMPLATE.format(bass=bass)
 
@@ -397,7 +434,7 @@ class SoCo(object):
 
             return int(bass)
 
-    def treble(self, treble=False):
+    def treble(self, treble=None):
         """ Get or set the Sonos speaker's treble EQ.
 
         Arguments:
@@ -414,7 +451,7 @@ class SoCo(object):
         speaker will be returned.
 
         """
-        if treble is not False:
+        if treble is not None:
             treble = max(-10, min(treble, 10)) # Coerce in range
             body = SET_TREBLE_BODY_TEMPLATE.format(treble=treble)
 
@@ -520,11 +557,11 @@ class SoCo(object):
     def unjoin(self):
         """ Remove this speaker from a group.
 
-        Seems to work ok even if you remove what was previously the group master from it's own group.
-        If the speaker was not in a group also returns ok.
+        Seems to work ok even if you remove what was previously the group master
+        from it's own group. If the speaker was not in a group also returns ok.
 
 		Returns:
-		True if this speaker has left the group'
+		True if this speaker has left the group.
         """
 
         response = self.__send_command(TRANSPORT_ENDPOINT, UNJOIN_ACTION, UNJOIN_BODY)
@@ -591,8 +628,8 @@ class SoCo(object):
 
         Returns:
         A dictionary containing the following information about the currently
-        playing track: playlist_position, duration, title, artist, album, and
-        a link to the album art.
+        playing track: playlist_position, duration, title, artist, album,
+        position and a link to the album art.
 
         If we're unable to return data for a field, we'll return an empty
         string. This can happen for all kinds of reasons so be sure to check
@@ -604,11 +641,13 @@ class SoCo(object):
 
         dom = XML.fromstring(response.encode('utf-8'))
 
-        track = {'title': '', 'artist': '', 'album': '', 'album_art': ''}
+        track = {'title': '', 'artist': '', 'album': '', 'album_art': '',
+            'position': ''}
 
         track['playlist_position'] = dom.findtext('.//Track')
         track['duration'] = dom.findtext('.//TrackDuration')
         track['uri'] = dom.findtext('.//TrackURI')
+        track['position'] = dom.findtext('.//RelTime')
 
         d = dom.findtext('.//TrackMetaData')
 
@@ -633,11 +672,22 @@ class SoCo(object):
         # metadata will return "NOT_IMPLEMENTED".
         elif d != '' and d != 'NOT_IMPLEMENTED':
             # Track metadata is returned in DIDL-Lite format
-            metadata = XML.fromstring(d.encode('utf-8'))
+            metadata  = XML.fromstring(d.encode('utf-8'))
+            md_title  = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}title')
+            md_artist = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}creator')
+            md_album  = metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}album')
 
-            track['title'] = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}title').encode('utf-8')
-            track['artist'] = metadata.findtext('.//{http://purl.org/dc/elements/1.1/}creator').encode('utf-8')
-            track['album'] = metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}album').encode('utf-8')
+            track['title'] = ""
+            if (md_title):
+                track['title'] = md_title.encode('utf-8')
+                
+            track['artist'] = ""
+            if (md_artist):
+                track['artist'] = md_artist.encode('utf-8')
+
+            track['album'] = ""
+            if (md_album):
+                track['album'] = md_album.encode('utf-8')
 
             album_art = metadata.findtext('.//{urn:schemas-upnp-org:metadata-1-0/upnp/}albumArtURI')
 
@@ -702,6 +752,33 @@ class SoCo(object):
                     self.speakers_ip.append(i)
 
             return self.speakers_ip
+             
+    def get_current_transport_info(self):
+        """ Get the current playback state 
+        
+        Returns:
+        A dictionary containing the following information about the speakers playing state
+        current_transport_state (PLAYING, PAUSED_PLAYBACK, STOPPED),
+        current_trasnport_status (OK, ?), current_speed(1,?)
+        
+        This allows us to know if speaker is playing or not. Don't know other states of 
+        CurrentTransportStatus and CurrentSpeed.
+        
+        """
+        response = self.__send_command(TRANSPORT_ENDPOINT, GET_CUR_TRANSPORT_ACTION, GET_CUR_TRANSPORT_BODY) 
+        dom = XML.fromstring(response.encode('utf-8'))
+        
+        playstate = {
+            'current_transport_status': '',
+            'current_transport_state': '',
+            'current_transport_speed': ''
+        }
+
+        playstate['current_transport_state'] = dom.findtext('.//CurrentTransportState')
+        playstate['current_transport_status'] = dom.findtext('.//CurrentTransportStatus')
+        playstate['current_transport_speed'] = dom.findtext('.//CurrentSpeed')
+        
+        return playstate
 
     def get_queue(self, start = 0, max_items = 100):
         """ Get information about the queue.
@@ -817,6 +894,47 @@ class SoCo(object):
             return self.__parse_error(response)
         else:
             return True
+            
+            
+    def get_topology(self):
+        """ Gets the topology (master/slave relationship) for this speaker. A device can be a standalone master, a master with slaves or a slave.
+
+        Returns:
+        A dictionary containing the topology information.
+          name - the name of the group. Normally the same as the speaker but may be different to the name of the speaker if the speaker is a group master
+          group_uid - the UID of the group master, blank if this is a slave
+          all_uids - comma delimited list of all the devices in the group, including the master (expected to be first)
+          is_master - this speaker is a master device, either of a group or as a stand-alone speaker
+          no_slaves - the number of slave devices in this group, zero if it is a standalone master.
+
+        If an error occurs, we'll attempt to parse the error and return a UPnP
+        error code. If that fails, the raw response sent back from the Sonos
+        speaker will be returned.
+        """
+        
+        self.get_speaker_info()
+        response = self.__send_command(ZONEGROUP_ENDPOINT, GET_TOPOLOGY_ACTION, GET_TOPOLOGY_BODY)
+
+        try:
+            dom = XML.fromstring(response.encode('utf-8'))
+            self.speaker_info[ 'no_slaves'] = 0 
+            self.speaker_info[ 'is_master'] = False
+
+            self.speaker_info['group_name'] = dom.findtext('.//CurrentZoneGroupName')
+            self.speaker_info['group_uid'] = dom.findtext('.//CurrentZoneGroupID')
+            self.speaker_info['all_uids'] = dom.findtext('.//CurrentZonePlayerUUIDsInGroup')
+            if len( self.speaker_info['group_name']) > 0 : self.speaker_info['is_master'] = True 
+            self.speaker_info['no_slaves'] = self.speaker_info['all_uids'].count( ',') 
+
+        except:
+          print traceback.format_exc()
+          logger.warning('Could not handle item: %s', dom)
+          logger.error(traceback.format_exc())
+	
+        if "errorCode" in response:
+            return self.__parse_error(response)
+        else:
+            return self.speaker_info
 
     def get_favorite_radio_shows(self, start=0, max_items=100):
         """ Get favorite radio shows from Sonos' Radio app.
@@ -865,7 +983,7 @@ class SoCo(object):
         body = GET_RADIO_FAVORITES_BODY_TEMPLATE.format(favorite_type, start, max_items)
             
         response = self.__send_command(CONTENT_DIRECTORY_ENDPOINT, BROWSE_ACTION, body)
-        
+
         dom = XML.fromstring(response.encode('utf-8'))
 
         result = {}
@@ -948,6 +1066,7 @@ TRANSPORT_ENDPOINT = '/MediaRenderer/AVTransport/Control'
 RENDERING_ENDPOINT = '/MediaRenderer/RenderingControl/Control'
 DEVICE_ENDPOINT = '/DeviceProperties/Control'
 CONTENT_DIRECTORY_ENDPOINT = '/MediaServer/ContentDirectory/Control'
+ZONEGROUP_ENDPOINT = '/ZoneGroupTopology/Control'
 
 ENQUEUE_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 ENQUEUE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
@@ -984,6 +1103,9 @@ PREV_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
 MUTE_ACTION = '"urn:schemas-upnp-org:service:RenderingControl:1#SetMute"'
 MUTE_BODY_TEMPLATE = '<u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"><InstanceID>0</InstanceID><Channel>Master</Channel><DesiredMute>{mute}</DesiredMute></u:SetMute>'
 MUTE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetMuteResponse xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"></u:SetMuteResponse></s:Body></s:Envelope>'
+
+GET_MUTE_ACTION = '"urn:schemas-upnp-org:service:RenderingControl:1#GetMute"'
+GET_MUTE_BODY = '<u:GetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"><InstanceID>0</InstanceID><Channel>Master</Channel></u:GetMute>'
 
 SET_VOLUME_ACTION = '"urn:schemas-upnp-org:service:RenderingControl:1#SetVolume"'
 SET_VOLUME_BODY_TEMPLATE  = '<u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1"><InstanceID>0</InstanceID><Channel>Master</Channel><DesiredVolume>{volume}</DesiredVolume></u:SetVolume>'
@@ -1029,6 +1151,9 @@ SET_LEDSTATE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/en
 GET_CUR_TRACK_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#GetPositionInfo"'
 GET_CUR_TRACK_BODY = '<u:GetPositionInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><Channel>Master</Channel></u:GetPositionInfo>'
 
+GET_CUR_TRANSPORT_ACTION = '"urn:schema-upnp-org:service:AVTransport:1#GetTransportInfo"'
+GET_CUR_TRANSPORT_BODY = '<u:GetTransportInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID></u:GetTransportInfo></s:Body></s:Envelope>'
+
 SOAP_TEMPLATE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>{body}</s:Body></s:Envelope>'
 
 SEEK_ACTION = '"urn:schemas-upnp-org:service:AVTransport:1#Seek"'
@@ -1057,3 +1182,10 @@ CLEAR_QUEUE_BODY = '<u:RemoveAllTracksFromQueue xmlns:u="urn:schemas-upnp-org:se
 
 BROWSE_ACTION = '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"'
 GET_RADIO_FAVORITES_BODY_TEMPLATE = '<u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1"><ObjectID>R:0/{0}</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>dc:title,res,dc:creator,upnp:artist,upnp:album,upnp:albumArtURI</Filter><StartingIndex>{1}</StartingIndex><RequestedCount>{2}</RequestedCount><SortCriteria/></u:Browse>'
+
+SET_PLAYER_NAME_ACTION ='"urn:schemas-upnp-org:service:DeviceProperties:1#SetZoneAttributes"'
+SET_PLAYER_NAME_BODY_TEMPLATE = '"<u:SetZoneAttributes xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"><DesiredZoneName>{playername}</DesiredZoneName><DesiredIcon /><DesiredConfiguration /></u:SetZoneAttributes>"'
+SET_PLAYER_NAME_RESPONSE ='"<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetZoneAttributesResponse xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"></u:SetZoneAttributesResponse></s:Body></s:Envelope>"'
+
+GET_TOPOLOGY_ACTION = '"urn:schemas-upnp-org:service:ZoneGroupTopology:1#GetZoneGroupAttributes"'
+GET_TOPOLOGY_BODY ='<u:GetZoneGroupAttributes xmlns:u="urn:schemas-upnp-org:service:ZoneGroupTopology:1" />'
