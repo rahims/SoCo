@@ -86,8 +86,9 @@ class SoCo(object):
     speakers_ip = [] # Stores the IP addresses of all the speakers in a network
 
     def __init__(self, speaker_ip):
-        self.speaker_ip = speaker_ip
-        self.speaker_info = {} # Stores information about the current speaker
+        self.speaker_ip = speaker_ip # ip address of a speaker, 
+        self.speaker_info = {}       # about the current speaker
+        self.topology = {}           # about the speaker's role in group
 
    
     def set_player_name(self,playername=False):
@@ -902,36 +903,36 @@ class SoCo(object):
 
         Returns:
         A dictionary containing the topology information.
-          name      - the name of the group. Normally the same as the speaker 
-                      but may be different the name of the speaker if the 
-                      speaker is a group master
-          group_uid - the UID of the group master, blank if this is a slave
-          all_uids  - comma delimited list of all the devices in the group, 
-                      including the master (expected to be first)
-          is_master - this speaker is a master device, either of a group or as 
-                      a stand-alone speaker
-          no_slaves - the number of slave devices in this group, zero if it is
-                      a standalone master.
+          group_name - the name of the group. Normally the same as the speaker 
+                       but may be different the name of the speaker if the 
+                       speaker is a group master, blank if this is a slave
+          group_uid  - the UID of the group master 
+          all_uids   - comma delimited list of all the devices in the group, 
+                       including the master (expected to be first)
+          is_master  - this speaker is a master device, either of a group or as 
+                       a stand-alone speaker
+          no_slaves  - the number of slave devices in this group, zero if it is
+                       a standalone master.
 
         If an error occurs, we'll attempt to parse the error and return a UPnP
         error code. If that fails, the raw response sent back from the Sonos
         speaker will be returned.
         """
         
-        self.get_speaker_info()
+        self.topology = {}
         response = self.__send_command(ZONEGROUP_ENDPOINT, GET_TOPOLOGY_ACTION, GET_TOPOLOGY_BODY)
 
         try:
             dom = XML.fromstring(response.encode('utf-8'))
-            self.speaker_info[ 'no_slaves'] = 0 
-            self.speaker_info[ 'is_master'] = False
-
-            self.speaker_info['group_name'] = dom.findtext('.//CurrentZoneGroupName')
-            self.speaker_info['group_uid'] = dom.findtext('.//CurrentZoneGroupID')
-            self.speaker_info['all_uids'] = dom.findtext('.//CurrentZonePlayerUUIDsInGroup')
-            if len( self.speaker_info['group_name']) > 0 :
-              self.speaker_info['is_master'] = True 
-            self.speaker_info['no_slaves'] = self.speaker_info['all_uids'].count( ',') 
+            self.topology['group_name'] = dom.findtext('.//CurrentZoneGroupName')
+            self.topology['group_uid']  = dom.findtext('.//CurrentZoneGroupID')
+            self.topology['all_uids']   = dom.findtext('.//CurrentZonePlayerUUIDsInGroup')
+            if len( self.topology['group_name']) > 0 :
+              # empirically it seems a speaker with no group name is a slave
+              self.topology['is_master'] = True 
+            else:
+              self.topology['is_master'] = False
+            self.topology['no_slaves'] = self.topology['all_uids'].count(',') 
 
         except:
           print traceback.format_exc()
@@ -941,7 +942,7 @@ class SoCo(object):
         if "errorCode" in response:
             return self.__parse_error(response)
         else:
-            return self.speaker_info
+            return self.topology
 
     def get_favorite_radio_shows(self, start=0, max_items=100):
         """ Get favorite radio shows from Sonos' Radio app.
