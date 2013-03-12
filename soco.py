@@ -897,15 +897,21 @@ class SoCo(object):
             
             
     def get_topology(self):
-        """ Gets the topology (master/slave relationship) for this speaker. A device can be a standalone master, a master with slaves or a slave.
+        """ Gets the topology (master/slave relationship) for this speaker.
+        A device can be a standalone master, a master with slaves or a slave.
 
         Returns:
         A dictionary containing the topology information.
-          name - the name of the group. Normally the same as the speaker but may be different to the name of the speaker if the speaker is a group master
+          name      - the name of the group. Normally the same as the speaker 
+                      but may be different the name of the speaker if the 
+                      speaker is a group master
           group_uid - the UID of the group master, blank if this is a slave
-          all_uids - comma delimited list of all the devices in the group, including the master (expected to be first)
-          is_master - this speaker is a master device, either of a group or as a stand-alone speaker
-          no_slaves - the number of slave devices in this group, zero if it is a standalone master.
+          all_uids  - comma delimited list of all the devices in the group, 
+                      including the master (expected to be first)
+          is_master - this speaker is a master device, either of a group or as 
+                      a stand-alone speaker
+          no_slaves - the number of slave devices in this group, zero if it is
+                      a standalone master.
 
         If an error occurs, we'll attempt to parse the error and return a UPnP
         error code. If that fails, the raw response sent back from the Sonos
@@ -923,7 +929,8 @@ class SoCo(object):
             self.speaker_info['group_name'] = dom.findtext('.//CurrentZoneGroupName')
             self.speaker_info['group_uid'] = dom.findtext('.//CurrentZoneGroupID')
             self.speaker_info['all_uids'] = dom.findtext('.//CurrentZonePlayerUUIDsInGroup')
-            if len( self.speaker_info['group_name']) > 0 : self.speaker_info['is_master'] = True 
+            if len( self.speaker_info['group_name']) > 0 :
+              self.speaker_info['is_master'] = True 
             self.speaker_info['no_slaves'] = self.speaker_info['all_uids'].count( ',') 
 
         except:
@@ -1187,8 +1194,7 @@ SET_PLAYER_NAME_ACTION ='"urn:schemas-upnp-org:service:DeviceProperties:1#SetZon
 SET_PLAYER_NAME_BODY_TEMPLATE = '"<u:SetZoneAttributes xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"><DesiredZoneName>{playername}</DesiredZoneName><DesiredIcon /><DesiredConfiguration /></u:SetZoneAttributes>"'
 SET_PLAYER_NAME_RESPONSE ='"<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetZoneAttributesResponse xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"></u:SetZoneAttributesResponse></s:Body></s:Envelope>"'
 
-<<<<<<< HEAD
 GET_TOPOLOGY_ACTION = '"urn:schemas-upnp-org:service:ZoneGroupTopology:1#GetZoneGroupAttributes"'
 GET_TOPOLOGY_BODY ='<u:GetZoneGroupAttributes xmlns:u="urn:schemas-upnp-org:service:ZoneGroupTopology:1" />'
-=======
->>>>>>> upstream/master
+
+
