@@ -78,6 +78,7 @@ class SoCo(object):
     add_to_queue -- Add a track to the end of the queue
     remove_from_queue -- Remove a track from the queue
     clear_queue -- Remove all tracks from queue
+    get_topology -- find out the role of the speaker in the network
     get_favorite_radio_shows -- Get favorite radio shows from Sonos' Radio app.
     get_favorite_radio_stations -- Get favorite radio stations.
 
@@ -914,12 +915,16 @@ class SoCo(object):
           no_slaves  - the number of slave devices in this group, zero if it is
                        a standalone master.
 
-        If an error occurs, we'll attempt to parse the error and return a UPnP
-        error code. If that fails, the raw response sent back from the Sonos
-        speaker will be returned.
+        If an error occurs, the dictionary data will be empty, it is the 
+        responsibility of the caller to make check for valid data. 
         """
         
-        self.topology = {}
+        self.topology = { 'group_name': None,
+                          'group_uid' : None,
+                          'all_uids'  : None,
+                          'is_master' : None,
+                          'no_slaves' : None }
+        
         response = self.__send_command(ZONEGROUP_ENDPOINT, GET_TOPOLOGY_ACTION, GET_TOPOLOGY_BODY)
 
         try:
@@ -939,10 +944,7 @@ class SoCo(object):
           logger.warning('Could not handle item: %s', dom)
           logger.error(traceback.format_exc())
 	
-        if "errorCode" in response:
-            return self.__parse_error(response)
-        else:
-            return self.topology
+        return self.topology
 
     def get_favorite_radio_shows(self, start=0, max_items=100):
         """ Get favorite radio shows from Sonos' Radio app.
