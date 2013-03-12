@@ -60,6 +60,7 @@ SoCo currently supports the following basic controls:
 * Stop
 * Next track
 * Previous track
+* Get current transport information(if speaker is playing,paused,stopped)
 * Get information about the currently playing track
     * Track title
     * Artist
@@ -84,8 +85,10 @@ SoCo currently supports the following basic controls:
     * Software version
     * Hardware version
     * MAC Address
+* Set the speaker's Zone Name
 * Find all the Sonos speakers in a network. Code contributed by Thomas Bartvig.
 * Put all Sonos speakers in a network into "party mode". Code contributed by Thomas Bartvig.
+* "Unjoin" speakers from a group.
 * Manage the Sonos queue (get the items in it, add to it, clear it, play a specific song from it)
 * Get the saved favorite radio stations and shows (title and stream URI)
 
@@ -103,6 +106,11 @@ Want to contribute to SoCo? Here's what needs to be done:
 * [Joel Björkman](https://github.com/labero)
 * [Stefan Kögl](https://github.com/stefankoegl)
 * [Kenneth Nielsen](https://github.com/KennethNielsen)
+* [Scott G. Waters](https://github.com/scottgwaters)
+* [phut](https://github.com/phut)
+
+## IRC
+From time to time, folks hang out in #soco on freenode (chat.freenode.net). If you're new to IRC, start with the [webchat client](http://webchat.freenode.net). Simply pick a nickname, enter #soco for the channel, and fill in the CAPTCHA.
 
 ## Related Projects
 More of a Ruby fan? Not a problem, [Sam Soffes](https://github.com/soffes) is building out an awesome [Ruby gem](https://github.com/soffes/sonos).

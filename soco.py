@@ -1187,5 +1187,8 @@ SET_PLAYER_NAME_ACTION ='"urn:schemas-upnp-org:service:DeviceProperties:1#SetZon
 SET_PLAYER_NAME_BODY_TEMPLATE = '"<u:SetZoneAttributes xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"><DesiredZoneName>{playername}</DesiredZoneName><DesiredIcon /><DesiredConfiguration /></u:SetZoneAttributes>"'
 SET_PLAYER_NAME_RESPONSE ='"<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetZoneAttributesResponse xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"></u:SetZoneAttributesResponse></s:Body></s:Envelope>"'
 
+<<<<<<< HEAD
 GET_TOPOLOGY_ACTION = '"urn:schemas-upnp-org:service:ZoneGroupTopology:1#GetZoneGroupAttributes"'
 GET_TOPOLOGY_BODY ='<u:GetZoneGroupAttributes xmlns:u="urn:schemas-upnp-org:service:ZoneGroupTopology:1" />'
+=======
+>>>>>>> upstream/master
