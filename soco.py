@@ -9,6 +9,7 @@ __website__ = 'https://github.com/rahims/SoCo'
 __license__ = 'MIT License'
 
 import xml.etree.cElementTree as XML
+from xml.etree.cElementTree import fromstring, ElementTree
 
 import requests
 import select
@@ -713,8 +714,7 @@ class SoCo(object):
             return self.speaker_info
         else:
             response = requests.get('http://' + self.speaker_ip + ':1400/xml/device_description.xml')
-  
-            from xml.etree.ElementTree import fromstring, ElementTree
+
             tree = ElementTree(fromstring(response.content))
             
             #strip out namespace from tags
@@ -735,14 +735,12 @@ class SoCo(object):
                 #print node.tag, node.attrib
                 element =  node.findtext('.//deviceType')                
                 nicename = element[dlen:][:-2]
-                print 'd  ', nicename
                 this_device = {namespace3:nicename} 
                 these_services = []
                 for node2 in node.findall('.//service'):
 				  #print node2.tag, node.attrib
                   element =  node2.findtext('.//serviceType')
                   nicename = element[slen:][:-2]
-                  print '  s', nicename
                   these_services.append( nicename)
                 this_device[namespace4] = these_services 
                 capabilities.append( this_device)
