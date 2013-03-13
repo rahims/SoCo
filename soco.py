@@ -712,17 +712,52 @@ class SoCo(object):
         if self.speaker_info and refresh is False:
             return self.speaker_info
         else:
-            response = requests.get('http://' + self.speaker_ip + ':1400/status/zp')
+            response = requests.get('http://' + self.speaker_ip + ':1400/xml/device_description.xml')
+  
+            from xml.etree.ElementTree import fromstring, ElementTree
+            tree = ElementTree(fromstring(response.content))
+            
+            #strip out namespace from tags
+            namespace  = 'urn:schemas-upnp-org'
+            namespace2 = 'device-1-0'
+            namespace3 = 'device'
+            namespace4 = 'service'
+            ns = u'{%s:%s}' % (namespace,namespace2)
+            nsl = len(ns)
+            for elem in tree.getiterator():
+              if elem.tag.startswith(ns):
+                elem.tag = elem.tag[nsl:]
 
-            dom = XML.fromstring(response.content)
-
-            self.speaker_info['zone_name'] = dom.findtext('.//ZoneName').encode('utf-8')
-            self.speaker_info['zone_icon'] = dom.findtext('.//ZoneIcon')
-            self.speaker_info['uid'] = dom.findtext('.//LocalUID')
-            self.speaker_info['serial_number'] = dom.findtext('.//SerialNumber')
-            self.speaker_info['software_version'] = dom.findtext('.//SoftwareVersion')
-            self.speaker_info['hardware_version'] = dom.findtext('.//HardwareVersion')
-            self.speaker_info['mac_address'] = dom.findtext('.//MACAddress')
+            capabilities = []
+            slen = len(namespace) + 2*len(':') + len(namespace4)
+            dlen = len(namespace) + 2*len(':') + len(namespace3)
+            for node in tree.findall('.//device'):
+                #print node.tag, node.attrib
+                element =  node.findtext('.//deviceType')                
+                nicename = element[dlen:][:-2]
+                print 'd  ', nicename
+                this_device = {namespace3:nicename} 
+                these_services = []
+                for node2 in node.findall('.//service'):
+				  #print node2.tag, node.attrib
+                  element =  node2.findtext('.//serviceType')
+                  nicename = element[slen:][:-2]
+                  print '  s', nicename
+                  these_services.append( nicename)
+                this_device[namespace4] = these_services 
+                capabilities.append( this_device)
+			
+            serial = tree.findtext('.//device//serialNum')
+            name   = tree.findtext('.//device//roomName')
+            if name:
+              self.speaker_info['zone_name']      = name.encode('utf-8')
+#           self.speaker_info['zone_icon']        = dom.findtext('.//ZoneIcon')
+            self.speaker_info['uid']              = tree.findtext('.//UDN')
+            self.speaker_info['serial_number']    = serial
+            self.speaker_info['software_version'] = tree.findtext('.//device//softwareVersion')
+            self.speaker_info['hardware_version'] = tree.findtext('.//device//hardwareVersion')
+            self.speaker_info['mac_address']      = serial.replace('-', ':')[:17]
+            self.speaker_info['capabilities']     = capabilities
 
             return self.speaker_info
 
