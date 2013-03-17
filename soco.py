@@ -78,6 +78,7 @@ class SoCo(object):
     add_to_queue -- Add a track to the end of the queue
     remove_from_queue -- Remove a track from the queue
     clear_queue -- Remove all tracks from queue
+    get_topology -- find out the role of the speaker in the network
     get_favorite_radio_shows -- Get favorite radio shows from Sonos' Radio app.
     get_favorite_radio_stations -- Get favorite radio stations.
 
@@ -86,8 +87,9 @@ class SoCo(object):
     speakers_ip = [] # Stores the IP addresses of all the speakers in a network
 
     def __init__(self, speaker_ip):
-        self.speaker_ip = speaker_ip
-        self.speaker_info = {} # Stores information about the current speaker
+        self.speaker_ip = speaker_ip # ip address of a speaker, 
+        self.speaker_info = {}       # about the current speaker
+        self.topology = {}           # about the speaker's role in group
 
    
     def set_player_name(self,playername=False):
@@ -894,6 +896,55 @@ class SoCo(object):
             return self.__parse_error(response)
         else:
             return True
+            
+            
+    def get_topology(self):
+        """ Gets the topology (master/slave relationship) for this speaker.
+        A device can be a standalone master, a master with slaves or a slave.
+
+        Returns:
+        A dictionary containing the topology information.
+          group_name - the name of the group. Normally the same as the speaker 
+                       but may be different the name of the speaker if the 
+                       speaker is a group master, blank if this is a slave
+          group_uid  - the UID of the group master 
+          all_uids   - comma delimited list of all the devices in the group, 
+                       including the master (expected to be first)
+          is_master  - this speaker is a master device, either of a group or as 
+                       a stand-alone speaker
+          no_slaves  - the number of slave devices in this group, zero if it is
+                       a standalone master.
+
+        If an error occurs, the dictionary data will be empty, it is the 
+        responsibility of the caller to make check for valid data. 
+        """
+        
+        self.topology = { 'group_name': None,
+                          'group_uid' : None,
+                          'all_uids'  : None,
+                          'is_master' : None,
+                          'no_slaves' : None }
+        
+        response = self.__send_command(ZONEGROUP_ENDPOINT, GET_TOPOLOGY_ACTION, GET_TOPOLOGY_BODY)
+
+        try:
+            dom = XML.fromstring(response.encode('utf-8'))
+            self.topology['group_name'] = dom.findtext('.//CurrentZoneGroupName')
+            self.topology['group_uid']  = dom.findtext('.//CurrentZoneGroupID')
+            self.topology['all_uids']   = dom.findtext('.//CurrentZonePlayerUUIDsInGroup')
+            if len( self.topology['group_name']) > 0 :
+              # empirically it seems a speaker with no group name is a slave
+              self.topology['is_master'] = True 
+            else:
+              self.topology['is_master'] = False
+            self.topology['no_slaves'] = self.topology['all_uids'].count(',') 
+
+        except:
+          print traceback.format_exc()
+          logger.warning('Could not handle item: %s', dom)
+          logger.error(traceback.format_exc())
+	
+        return self.topology
 
     def get_favorite_radio_shows(self, start=0, max_items=100):
         """ Get favorite radio shows from Sonos' Radio app.
@@ -1025,6 +1076,7 @@ TRANSPORT_ENDPOINT = '/MediaRenderer/AVTransport/Control'
 RENDERING_ENDPOINT = '/MediaRenderer/RenderingControl/Control'
 DEVICE_ENDPOINT = '/DeviceProperties/Control'
 CONTENT_DIRECTORY_ENDPOINT = '/MediaServer/ContentDirectory/Control'
+ZONEGROUP_ENDPOINT = '/ZoneGroupTopology/Control'
 
 ENQUEUE_BODY_TEMPLATE = '<u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"><InstanceID>0</InstanceID><CurrentURI>{uri}</CurrentURI><CurrentURIMetaData></CurrentURIMetaData></u:SetAVTransportURI>'
 ENQUEUE_RESPONSE = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetAVTransportURIResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1"></u:SetAVTransportURIResponse></s:Body></s:Envelope>'
@@ -1144,4 +1196,8 @@ GET_RADIO_FAVORITES_BODY_TEMPLATE = '<u:Browse xmlns:u="urn:schemas-upnp-org:ser
 SET_PLAYER_NAME_ACTION ='"urn:schemas-upnp-org:service:DeviceProperties:1#SetZoneAttributes"'
 SET_PLAYER_NAME_BODY_TEMPLATE = '"<u:SetZoneAttributes xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"><DesiredZoneName>{playername}</DesiredZoneName><DesiredIcon /><DesiredConfiguration /></u:SetZoneAttributes>"'
 SET_PLAYER_NAME_RESPONSE ='"<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:SetZoneAttributesResponse xmlns:u="urn:schemas-upnp-org:service:DeviceProperties:1"></u:SetZoneAttributesResponse></s:Body></s:Envelope>"'
+
+GET_TOPOLOGY_ACTION = '"urn:schemas-upnp-org:service:ZoneGroupTopology:1#GetZoneGroupAttributes"'
+GET_TOPOLOGY_BODY ='<u:GetZoneGroupAttributes xmlns:u="urn:schemas-upnp-org:service:ZoneGroupTopology:1" />'
+
 
