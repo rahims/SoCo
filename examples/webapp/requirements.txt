@@ -1,5 +1,5 @@
 Flask==0.8
-Jinja2==2.6
+Jinja2==2.11.3
 Werkzeug==0.8.3
 certifi==0.0.8
 chardet==1.0.1
